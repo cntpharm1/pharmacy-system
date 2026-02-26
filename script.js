@@ -27,49 +27,43 @@ async function initLiff() {
 
 // 2. เช็คว่าลงทะเบียนหรือยัง
 // แก้ไขฟังก์ชัน checkUserStatus ใน script.js
-async function checkUserStatus(userId) {
-    try {
-        // 1. URL ของ GAS ตัวเดิมของคุณ
-        const gasUrl = `${GAS_URL}?action=checkUser&userId=${userId}`;
+// 2. ฟังก์ชันเช็คสถานะแบบ JSONP (แก้ปัญหา CORS)
+function checkUserStatusJSONP(userId) {
+    // สร้างชื่อฟังก์ชันชั่วคราวบน Window เพื่อให้ GAS เรียกกลับมาได้
+    const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+    
+    window[callbackName] = function(data) {
+        console.log("Data received via JSONP:", data);
         
-        // 2. เรียกผ่าน AllOrigins Proxy (วิธีนี้แก้ปัญหา CORS ได้ขาด)
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(gasUrl)}`;
-        
-        const res = await fetch(proxyUrl);
-        if (!res.ok) throw new Error('Network response was not ok');
-        
-        const json = await res.json();
-        
-        // ข้อมูลจริงจาก GAS จะถูกห่ออยู่ใน json.contents (เป็น String)
-        const result = JSON.parse(json.contents);
-        
-        console.log("Result from GAS via Proxy:", result);
-
-        if (result.registered) {
+        if (data.registered) {
             Swal.fire({
                 icon: 'success',
-                title: 'ลงทะเบียนแล้ว',
-                text: 'ท่านได้ลงทะเบียนในระบบเรียบร้อยแล้ว',
+                title: 'ลงทะเบียนเรียบร้อยแล้ว',
+                text: 'กำลังปิดหน้าต่างแอป...',
                 timer: 2000,
-                showConfirmButton: false,
-                toast: true,
-                position: 'top'
+                showConfirmButton: false
             });
+            
+            // ส่งข้อความยืนยันเข้า LINE (ถ้าทำได้)
+            liff.sendMessages([{ type: 'text', text: '📢 ท่านได้ลงทะเบียนระบบยาเรียบร้อยแล้ว' }])
+                .catch(e => console.log("Send msg failed (PC)"));
 
-            // ส่งข้อความ LINE (ถ้าทำได้) และปิดหน้าต่าง
-            try {
-                await liff.sendMessages([{ type: 'text', text: '📢 ท่านได้ลงทะเบียนในระบบจัดการยาเรียบร้อยแล้ว' }]);
-            } catch (e) { console.log("PC User: Skip send message"); }
-
-            setTimeout(() => { liff.closeWindow(); }, 2000);
+            setTimeout(() => liff.closeWindow(), 2000);
         } else {
-            // ถ้ายังไม่ลงทะเบียน ไปหน้าลงทะเบียน
+            // ยังไม่ลงทะเบียน ส่งไปหน้า register.html
             window.location.href = "register.html";
         }
-    } catch (err) {
-        console.error("CORS Error details:", err);
-        Swal.fire("Error", "การเชื่อมต่อฐานข้อมูลขัดข้อง (CORS) กรุณาลองใหม่อีกครั้ง", "error");
-    }
+
+        // ลบแท็ก script และฟังก์ชันชั่วคราวออกเพื่อประหยัดทรัพยากร
+        delete window[callbackName];
+        document.getElementById(callbackName).remove();
+    };
+
+    // สร้างแท็ก <script> เพื่อยิงไปหา GAS
+    const script = document.createElement('script');
+    script.src = `${GAS_URL}?action=checkUser&userId=${userId}&callback=${callbackName}&t=${Date.now()}`;
+    script.id = callbackName;
+    document.body.appendChild(script);
 }
 
 // 3. ฟังก์ชันสำหรับหน้าลงทะเบียน (register.html)
