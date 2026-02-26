@@ -35,7 +35,7 @@ async function checkUserStatus(userId) {
         // 2. เรียกผ่าน AllOrigins Proxy (วิธีนี้แก้ปัญหา CORS ได้ขาด)
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(gasUrl)}`;
         
-        const res = await fetch(proxyUrl);
+        const res = await fetch(gasUrl);
         if (!res.ok) throw new Error('Network response was not ok');
         
         const json = await res.json();
